@@ -29,6 +29,12 @@ cc_binary(
     ],
 )
 
+cc_library(
+    name = "guide",
+    srcs = ["mutate.cpp"],
+    hdrs = ["mutate.h", "guide.h"]
+)
+
 cc_binary(
     name = "main",
     srcs = ["main.cc"],
@@ -43,18 +49,13 @@ cc_binary(
     ],
     linkstatic = True,
     deps = [
-        #"@com_google_fuzztest//centipede:centipede_runner_no_main",
-        #"@com_google_absl//absl/log",
-        #"@com_google_absl//absl/log:check",
-        #"@com_google_absl//absl/strings",
+        ":guide",
         "@com_google_fuzztest//centipede:centipede_callbacks",
         "@com_google_fuzztest//centipede:centipede_interface",
-        #"@com_google_fuzztest//centipede:command",
+        "@com_google_fuzztest//centipede:command",
         "@com_google_fuzztest//centipede:config_file",
-        #"@com_google_fuzztest//centipede:defs",
         "@com_google_fuzztest//centipede:environment_flags",
         "@com_google_fuzztest//centipede:runner_result",
-        #"@com_google_fuzztest//centipede:shared_memory_blob_sequence",
-        #"@com_google_fuzztest//centipede:util",
+        "@com_google_fuzztest//centipede:util",
     ],
 )
