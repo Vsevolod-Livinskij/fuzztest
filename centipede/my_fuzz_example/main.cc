@@ -27,18 +27,27 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     LOG(INFO) << "Temp dir: " << temp_dir;
 
     auto input = inputs.front();
-    auto input_str = std::string(input.begin(), input.end());
-    LOG(INFO) << "Input: " << input_str;
+    std::string inp_choice_seq_file =
+        std::filesystem::path(temp_dir).append(absl::StrCat("input"));
+    WriteToLocalFile(inp_choice_seq_file, input);
 
     Command cmd{
         "/testing/result/yarpgen",
-        {"--check-algo=asserts", "-o " + temp_dir, "--seed=" + input_str},
+        {"--check-algo=asserts",
+         "--param-shuffle=false",
+         "--choice-seq-load-file=" + inp_choice_seq_file,
+         "-o " + temp_dir,
+        },
     };
 
     bool success = cmd.Execute() == 0;
     if (!success) {
-      LOG(INFO) << "Failed to generate";
-      return false;
+      LOG(ERROR) << "Failed to generate";
+      LOG(ERROR) << "Input: " << input.data();
+      std::string new_binary(binary);
+      new_binary += " --version";
+      return ExecuteCentipedeSancovBinaryWithShmem(new_binary, inputs,
+                                                   batch_result) == 0;
     }
 
     LOG(INFO) << "Generation: " << success;
@@ -49,7 +58,7 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
         std::filesystem::path(temp_dir).append(absl::StrCat("driver.o"));
     Command driver_comp{
         "clang++",
-        {driver_cpp, "-c -w", "-o " + driver_o},
+        {driver_cpp, "-c -w -O3", "-o " + driver_o},
     };
     success = driver_comp.Execute() == 0;
     if (!success) {
@@ -75,7 +84,7 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
         std::filesystem::path(temp_dir).append(absl::StrCat("a.out"));
     Command exec_compile{
         "clang++",
-        {driver_o, func_o, "-o " + exec_file},
+        {driver_o, func_o, "-O3", "-o " + exec_file},
     };
     success = exec_compile.Execute() == 0;
     if (!success) {
@@ -85,8 +94,8 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
 
     LOG(INFO) << "Compilation: " << success;
 
-    Command cmd2{exec_file};
-    success = cmd2.Execute() == 0;
+    Command exec_test{exec_file};
+    success = exec_test.Execute() == 0;
     if (!success) {
       LOG(INFO) << "Failed to execute";
     }
@@ -95,83 +104,76 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
 
   void Mutate(const std::vector<MutationInputRef>& inputs, size_t num_mutants,
                 std::vector<ByteArray>& mutants) override {
-    LOG(INFO) << "Mutate";
-    auto input = inputs.front();
-    auto input_str = std::string(input.data.begin(), input.data.end());
-    LOG(INFO) << "Input: " << input_str;
-
-    uint64_t seed = 0;
-    for (auto c : input_str) {
-      seed ^= c + 0x9e3779b9 + (seed<<6) + (seed>>2);
-    }
-
-    LOG(INFO) << "Seed: " << seed;
-    auto mutant_str = std::to_string(seed);
-    ByteArray mutant(mutant_str.begin(), mutant_str.end());
-    mutants.push_back(mutant);
-
-    /*
-    const std::string temp_dir = TemporaryLocalDirPath();
-    CHECK(!temp_dir.empty());
-
-    LOG(INFO) << "Temp dir: " << temp_dir;
-
-    auto input = inputs.front();
+    LOG(INFO) << "Mutation started";
 
     std::string Prefix = "// ";
-    std::string Generator = "yarpgen";
 
+    // Create a temporary directory
+    const std::string temp_dir = TemporaryLocalDirPath();
+    CHECK(!temp_dir.empty());
+    LOG(INFO) << "Temp dir: " << temp_dir;
+
+    // Read inputs to a choice sequence and mutate them
+    auto input = inputs.front();
     std::string Str(input.data.begin(), input.data.end());
     std::stringstream SS(Str);
     tree_guide::FileGuide FG;
-    // FG.setSync(tree_guide::Sync::RESYNC);
-    FG.setSync(tree_guide::Sync::NONE);
+    FG.setSync(tree_guide::Sync::RESYNC);
+    //FG.setSync(tree_guide::Sync::NONE);
     if (!FG.parseChoices(SS, Prefix)) {
-      std::cerr << "ERROR: couldn't parse choices from:\n";
-      std::cerr << SS.str();
-      std::cerr << "--------------------------\n\n";
-      exit(-1);
+      LOG(ERROR) << "ERROR: couldn't parse choices from: \n" << SS.str();
+      mutants.emplace_back(input.data.begin(), input.data.end());
+      return;
     }
     auto C = FG.getChoices();
-    if (DEBUG_PLUGIN) std::cerr << "parsed " << C.size() << " choices\n";
+    LOG(INFO) << "Parsed choices num: " << C.size();
     mutator::mutate_choices(C);
-    if (DEBUG_PLUGIN) std::cerr << "mutated\n";
+    LOG(INFO) << "Mutation complete";
     FG.replaceChoices(C);
+    LOG(INFO) << "Mutated choices num: " << FG.getChoices().size();
 
+    // Create a Saver guide to dump the mutated choice sequence
+    LOG(INFO) << "Dumping mutated choice sequence";
     tree_guide::SaverGuide SG(&FG, Prefix);
     auto Ch = SG.makeChooser();
-    auto Ch2 = static_cast<tree_guide::SaverChooser*>(Ch.get());
-    assert(Ch2);
+    auto SaverCh = static_cast<tree_guide::SaverChooser*>(Ch.get());
+    SaverCh->overrideChoices(C);
+    assert(SaverCh);
 
-    std::string choice_seq_str = Ch2->formatChoices();
-    LOG(INFO) << "Orig: " << choice_seq_str;
-    std::string temp_inp_file_path =
+    // Normalize the choice sequence
+    LOG(INFO) << "Normalizing choice sequence";
+    std::string choice_seq_str = SaverCh->formatChoices();
+    LOG(INFO) << "Choice sequence to normalize len: " << choice_seq_str.size();
+    std::string temp_inp_file =
         std::filesystem::path(temp_dir).append(absl::StrCat("input"));
-    std::string temp_out_file_path =
+    std::string temp_out_file =
         std::filesystem::path(temp_dir).append(absl::StrCat("output"));
-    WriteToLocalFile(temp_inp_file_path, choice_seq_str);
-    Command cmd{
-        Generator,
-        {"--merge-vars-decl=true", "--do-not-emit=true"},
-        {std::string("FILEGUIDE_INPUT_FILE=") + temp_inp_file_path,
-         std::string("FILEGUIDE_OUTPUT_FILE=") + temp_out_file_path}
-    };
+    WriteToLocalFile(temp_inp_file, choice_seq_str);
+    Command cmd{"/testing/result/yarpgen",
+                {"--single-file=true", "--param-shuffle=false",
+                 "--choice-seq-load-file=" + temp_inp_file,
+                 "--choice-seq-save-file=" + temp_out_file, "-o " + temp_dir}};
 
+    LOG(INFO) << "Normalization cmd: " << cmd.ToString();
     bool success = cmd.Execute() == 0;
+    if (!success) {
+      LOG(ERROR) << "Failed to normalize";
+      mutants.emplace_back(input.data.begin(), input.data.end());
+      return;
+    }
 
-    LOG(INFO) << "Normalization: " << success;
+    // Read the normalized choice sequence
+    LOG(INFO) << "Reading normalized choice sequence";
+    tree_guide::FileGuide FG_new;
+    FG_new.parseChoices(temp_out_file, Prefix);
+    tree_guide::SaverGuide SG2(&FG_new, Prefix);
+    auto Ch_new = SG2.makeChooser();
+    auto SaverCh_new = static_cast<tree_guide::SaverChooser*>(Ch_new.get());
+    SaverCh_new->overrideChoices(FG_new.getChoices());
+    auto choice_seq_str_new = SaverCh_new->formatChoices();
+    mutants.emplace_back(choice_seq_str_new.begin(), choice_seq_str_new.end());
 
-    tree_guide::FileGuide FG2;
-    FG2.parseChoices(temp_out_file_path, Prefix);
-    tree_guide::SaverGuide SG2(&FG2, Prefix);
-    auto Ch3 = SG.makeChooser();
-    auto Ch4 = static_cast<tree_guide::SaverChooser*>(Ch3.get());
-    auto choice_seq_str2 = Ch4->formatChoices();
-    mutants.push_back(ByteArray(choice_seq_str2.begin(),
-    choice_seq_str2.end()));
-
-    LOG(INFO) << "Mutant: " << choice_seq_str2;
-     */
+    LOG(INFO) << "Mutant len: " << choice_seq_str_new.size();
   }
     /*
     // Prepare input
@@ -227,12 +229,13 @@ int CentipedeMain(const Environment& env,
 }  // namespace centipede
 
 // Run command
-//rm -rf /testing/result/centipede-run/* && ./main --binary="/testing/llvm/centipede_build_llvmorg-17.0.3/bin/clang++ -O3 -w" --workdir=/testing/result/centipede-run/ --num_runs=1000 --batch_size=1 --rss_limit_mb=0 --address_space_limit_mb=0 --timeout_per_input=120 --timeout_per_batch=240 --corpus_dir=/testing/result/int-corpus
+// rm -rf /testing/result/centipede-run/* && ./main --binary="/testing/llvm/centipede_build_llvmorg-17.0.3/bin/clang++ -O3 -w" --workdir=/testing/result/centipede-run/ --num_runs=10 --batch_size=1 --rss_limit_mb=0 --address_space_limit_mb=0 --timeout_per_input=120 --timeout_per_batch=240 --corpus_dir=/testing/result/guided-corpus --max_len=100000
 
 int main(int argc, char **argv) {
   const auto leftover_argv = centipede::config::InitCentipede(argc, argv);
   // Reads flags; must happen after ParseCommandLine().
   const auto env = centipede::CreateEnvironmentFromFlags(leftover_argv);
   centipede::DefaultCallbacksFactory<centipede::MyCentipedeCallbacks> callbacks_factory;
+  mutator::init(env.seed);
   return centipede::CentipedeMain(env, callbacks_factory);
 }
