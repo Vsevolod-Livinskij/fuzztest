@@ -8,7 +8,10 @@ ARG GCC_VERSION=master
 
 ENV LLVM_HOME=$TESTING_HOME/llvm
 ARG LLVM_REPO=https://github.com/llvm/llvm-project.git
-ARG LLVM_VERSION=llvmorg-17.0.3
+# This is the LLVM version that we use to compile instrumented binary
+# The system default isa bit old, so we use a separate one
+ARG LLVM_INSTR_VERSION=llvmorg-17.0.5
+ARG LLVM_VERSION=main
 
 ENV BINUTILS_HOME=$TESTING_HOME/binutils
 ARG BINUTILS_REPO=https://sourceware.org/git/binutils-gdb.git
@@ -19,7 +22,7 @@ ARG SDE_VERSION=sde-external-9.14.0-2022-10-25-lin
 # Centipede lives inside fuzztest repo
 ENV FUZZTEST_HOME=$TESTING_HOME/fuzztest
 ARG FUZZTEST_REPO=https://github.com/google/fuzztest
-ARG FUZZTEST_VERSION=c35abd2386c48daa0ca5f99313ba053253f2fd38
+ARG FUZZTEST_VERSION=main
 
 ENV YARPGEN_HOME=$TESTING_HOME/yarpgen
 ARG YARPGEN_REPO=https://github.com/intel/yarpgen
@@ -65,23 +68,37 @@ RUN apt-get -y update &&\
 
 WORKDIR $TESTING_HOME
 
-COPY build_llvm.sh /
-RUN /build_llvm.sh $LLVM_REPO $LLVM_VERSION
-ENV PATH=$LLVM_HOME/bin_$LLVM_VERSION/bin/:$PATH
-ENV LD_LIBRARY_PATH=$LLVM_HOME/bin_$LLVM_VERSION/lib/:$LD_LIBRARY_PATH
+# Sytem LD doesn't support DWARF v5, which is required for instrumented LLVM trunk
+COPY build_binutils.sh /
+RUN /build_binutils.sh $BINUTILS_REPO
 
+ENV PATH=$BINUTILS_HOME/bin/bin:$PATH
+ENV LD_LIBRARY_PATH=$BINUTILS_HOME/bin/lib/:$LD_LIBRARY_PATH
+
+
+# Build the LLVM version that we use for instrumentation
+COPY build_llvm.sh /
+RUN /build_llvm.sh $LLVM_REPO $LLVM_INSTR_VERSION
+ENV PATH=$LLVM_HOME/bin_$LLVM_INSTR_VERSION/bin/:$PATH
+ENV LD_LIBRARY_PATH=$LLVM_HOME/bin_$LLVM_INSTR_VERSION/lib/:$LD_LIBRARY_PATH
+
+# Builde centipede
 COPY build_centipede.sh /
 RUN /build_centipede.sh $FUZZTEST_REPO $FUZZTEST_VERSION
 
+# Build instrumented LLVM
 COPY build_llvm_for_centipede.sh /
 # Enable instrumentation for a whole folder and all functions in those files
-RUN echo "src:$LLVM_HOME/llvm_src_$LLVM_VERSION/llvm/*" > /allowlist.txt &&\
+RUN echo "src:$LLVM_HOME/llvm_src/llvm/*" > /allowlist.txt &&\
     echo "fun:*" >> /allowlist.txt
 RUN /build_llvm_for_centipede.sh $LLVM_REPO $LLVM_VERSION
 
 #RUN git clone $YARPGEN_REPO $YARPGEN_HOME &&\
 #    cd $YARPGEN_HOME &&\
 #    git checkout $YARPGEN_VERSION
+
+#COPY build_gcc.sh /
+#RUN /build_gcc.sh $GCC_REPO $GCC_VERSION
 
 #RUN $YARPGEN_HOME/scripts/build_gcc.sh $GCC_REPO $GCC_VERSION
 
@@ -93,9 +110,9 @@ RUN /build_llvm_for_centipede.sh $LLVM_REPO $LLVM_VERSION
 
 #RUN $YARPGEN_HOME/scripts/build_llvm.sh $LLVM_REPO $LLVM_VERSION
 
-#RUN wget -U $USER_AGENT --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 5 $SDE_REPO/$SDE_VERSION.tar.xz
-#RUN tar -xf $SDE_VERSION.tar.xz
-#ENV PATH=$TESTING_HOME/$SDE_VERSION:$PATH
+RUN wget -U $USER_AGENT --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 5 $SDE_REPO/$SDE_VERSION.tar.xz
+RUN tar -xf $SDE_VERSION.tar.xz
+ENV PATH=$TESTING_HOME/$SDE_VERSION:$PATH
 
 #RUN $YARPGEN_HOME/scripts/build_yarpgen.sh
 
@@ -108,8 +125,8 @@ RUN /build_llvm_for_centipede.sh $LLVM_REPO $LLVM_VERSION
 #ENV PATH=$LLVM_HOME/bin_$LLVM_VERSION/bin/:$PATH
 #ENV LD_LIBRARY_PATH=$LLVM_HOME/bin_$LLVM_VERSION/lib/:$LD_LIBRARY_PATH
 
-ENV PATH=$FUZZTEST_HOME/bazel-bin/centipede:$PATH
-ENV LD_LIBRARY_PATH=FUZZTEST_HOME/bazel-bin/centipede:$LD_LIBRARY_PATH
+#ENV PATH=$FUZZTEST_HOME/bazel-bin/centipede:$PATH
+#ENV LD_LIBRARY_PATH=FUZZTEST_HOME/bazel-bin/centipede:$LD_LIBRARY_PATH
 
 ARG RESULT_DIR
 ENV RESULT_DIR=${RESULT_DIR:-$TESTING_HOME/result}

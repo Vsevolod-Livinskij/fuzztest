@@ -24,23 +24,24 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     const std::string temp_dir = TemporaryLocalDirPath();
     CHECK(!temp_dir.empty());
 
-    LOG(INFO) << "Temp dir: " << temp_dir;
+    // LOG(INFO) << "Temp dir: " << temp_dir;
 
     auto input = inputs.front();
     std::string inp_choice_seq_file =
         std::filesystem::path(temp_dir).append(absl::StrCat("input"));
     WriteToLocalFile(inp_choice_seq_file, input);
 
-    Command cmd{
+    Command generate{
         "/testing/result/yarpgen",
-        {"--check-algo=asserts",
-         "--param-shuffle=false",
-         "--choice-seq-load-file=" + inp_choice_seq_file,
-         "-o " + temp_dir,
+        {
+            "--check-algo=asserts",
+            "--param-shuffle=false",
+            "--choice-seq-load-file=" + inp_choice_seq_file,
+            "-o " + temp_dir,
         },
     };
 
-    bool success = cmd.Execute() == 0;
+    bool success = generate.Execute() == 0;
     if (!success) {
       LOG(ERROR) << "Failed to generate";
       LOG(ERROR) << "Input: " << input.data();
@@ -50,33 +51,34 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
                                                    batch_result) == 0;
     }
 
-    LOG(INFO) << "Generation: " << success;
+    // LOG(INFO) << "Generation: " << success;
 
-    std::string driver_cpp =
-        std::filesystem::path(temp_dir).append(absl::StrCat("driver.cpp"));
-    std::string driver_o =
-        std::filesystem::path(temp_dir).append(absl::StrCat("driver.o"));
-    Command driver_comp{
-        "clang++",
-        {driver_cpp, "-c -w -O3", "-o " + driver_o},
-    };
-    success = driver_comp.Execute() == 0;
-    if (!success) {
-      LOG(INFO) << "Failed to compile driver";
-      return false;
-    }
 
     std::string func_cpp =
         std::filesystem::path(temp_dir).append(absl::StrCat("func.cpp"));
     std::string func_o =
         std::filesystem::path(temp_dir).append(absl::StrCat("func.o"));
     std::string new_binary(binary);
-    new_binary += " " + func_cpp + " -c " + "-o " + func_o;
-    LOG(INFO) << "New binary: " << new_binary;
+    new_binary += " -c -w -O3 -march=skx " + func_cpp + " -o " + func_o;
+    // LOG(INFO) << "New binary: " << new_binary;
     success = ExecuteCentipedeSancovBinaryWithShmem(new_binary, inputs,
                                                     batch_result) == 0;
     if (!success) {
-      LOG(INFO) << "Failed to compile func";
+      LOG(ERROR) << "Failed to compile func";
+      return false;
+    }
+    /*
+    std::string driver_cpp =
+        std::filesystem::path(temp_dir).append(absl::StrCat("driver.cpp"));
+    std::string driver_o =
+        std::filesystem::path(temp_dir).append(absl::StrCat("driver.o"));
+    Command driver_comp{
+        "clang++",
+        {driver_cpp, "-c -w -O3 -march=skx", "-o " + driver_o},
+    };
+    success = driver_comp.Execute() == 0;
+    if (!success) {
+      LOG(ERROR) << "Failed to compile driver";
       return false;
     }
 
@@ -84,34 +86,37 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
         std::filesystem::path(temp_dir).append(absl::StrCat("a.out"));
     Command exec_compile{
         "clang++",
-        {driver_o, func_o, "-O3", "-o " + exec_file},
+        {driver_o, func_o, "-w -O3 -march=skx", "-o " + exec_file},
     };
     success = exec_compile.Execute() == 0;
     if (!success) {
-      LOG(INFO) << "Failed to compile exec";
+      LOG(ERROR) << "Failed to compile exec";
       return false;
     }
 
-    LOG(INFO) << "Compilation: " << success;
+    // LOG(INFO) << "Compilation: " << success;
 
-    Command exec_test{exec_file};
+    Command exec_test{"sde", {"-skx", "-- " + exec_file}};
+    // LOG(INFO) << "Exec cmd: " << exec_test.ToString();
     success = exec_test.Execute() == 0;
     if (!success) {
-      LOG(INFO) << "Failed to execute";
+      LOG(ERROR) << "Failed to execute";
     }
+    // LOG(INFO) << "Execution: " << success;
+    */
     return success;
   }
 
   void Mutate(const std::vector<MutationInputRef>& inputs, size_t num_mutants,
                 std::vector<ByteArray>& mutants) override {
-    LOG(INFO) << "Mutation started";
+    //LOG(INFO) << "Mutation started";
 
     std::string Prefix = "// ";
 
     // Create a temporary directory
     const std::string temp_dir = TemporaryLocalDirPath();
     CHECK(!temp_dir.empty());
-    LOG(INFO) << "Temp dir: " << temp_dir;
+    //LOG(INFO) << "Temp dir: " << temp_dir;
 
     // Read inputs to a choice sequence and mutate them
     auto input = inputs.front();
@@ -126,14 +131,14 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
       return;
     }
     auto C = FG.getChoices();
-    LOG(INFO) << "Parsed choices num: " << C.size();
+    //LOG(INFO) << "Parsed choices num: " << C.size();
     mutator::mutate_choices(C);
-    LOG(INFO) << "Mutation complete";
+    //LOG(INFO) << "Mutation complete";
     FG.replaceChoices(C);
-    LOG(INFO) << "Mutated choices num: " << FG.getChoices().size();
+    //LOG(INFO) << "Mutated choices num: " << FG.getChoices().size();
 
     // Create a Saver guide to dump the mutated choice sequence
-    LOG(INFO) << "Dumping mutated choice sequence";
+    //LOG(INFO) << "Dumping mutated choice sequence";
     tree_guide::SaverGuide SG(&FG, Prefix);
     auto Ch = SG.makeChooser();
     auto SaverCh = static_cast<tree_guide::SaverChooser*>(Ch.get());
@@ -141,9 +146,9 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     assert(SaverCh);
 
     // Normalize the choice sequence
-    LOG(INFO) << "Normalizing choice sequence";
+    //LOG(INFO) << "Normalizing choice sequence";
     std::string choice_seq_str = SaverCh->formatChoices();
-    LOG(INFO) << "Choice sequence to normalize len: " << choice_seq_str.size();
+    //LOG(INFO) << "Choice sequence to normalize len: " << choice_seq_str.size();
     std::string temp_inp_file =
         std::filesystem::path(temp_dir).append(absl::StrCat("input"));
     std::string temp_out_file =
@@ -154,7 +159,7 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
                  "--choice-seq-load-file=" + temp_inp_file,
                  "--choice-seq-save-file=" + temp_out_file, "-o " + temp_dir}};
 
-    LOG(INFO) << "Normalization cmd: " << cmd.ToString();
+    //LOG(INFO) << "Normalization cmd: " << cmd.ToString();
     bool success = cmd.Execute() == 0;
     if (!success) {
       LOG(ERROR) << "Failed to normalize";
@@ -163,7 +168,7 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     }
 
     // Read the normalized choice sequence
-    LOG(INFO) << "Reading normalized choice sequence";
+    //LOG(INFO) << "Reading normalized choice sequence";
     tree_guide::FileGuide FG_new;
     FG_new.parseChoices(temp_out_file, Prefix);
     tree_guide::SaverGuide SG2(&FG_new, Prefix);
@@ -173,7 +178,7 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     auto choice_seq_str_new = SaverCh_new->formatChoices();
     mutants.emplace_back(choice_seq_str_new.begin(), choice_seq_str_new.end());
 
-    LOG(INFO) << "Mutant len: " << choice_seq_str_new.size();
+    //LOG(INFO) << "Mutant len: " << choice_seq_str_new.size();
   }
     /*
     // Prepare input
@@ -229,7 +234,7 @@ int CentipedeMain(const Environment& env,
 }  // namespace centipede
 
 // Run command
-// rm -rf /testing/result/centipede-run/* && ./main --binary="/testing/llvm/centipede_build_llvmorg-17.0.3/bin/clang++ -O3 -w" --workdir=/testing/result/centipede-run/ --num_runs=10 --batch_size=1 --rss_limit_mb=0 --address_space_limit_mb=0 --timeout_per_input=120 --timeout_per_batch=240 --corpus_dir=/testing/result/guided-corpus --max_len=100000
+// rm -rf /testing/result/centipede-run/* && time ./main --binary="/testing/llvm/centipede_build_main/bin/clang++" --workdir=/testing/result/centipede-run/ --num_runs=20 --batch_size=1 --rss_limit_mb=0 --address_space_limit_mb=0 --timeout_per_input=120 --timeout_per_batch=240 --corpus_dir=/testing/result/guided-corpus --max_len=100000 --num_crash_reports=10000
 
 int main(int argc, char **argv) {
   const auto leftover_argv = centipede::config::InitCentipede(argc, argv);

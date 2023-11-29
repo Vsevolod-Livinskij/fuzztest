@@ -159,14 +159,14 @@ static void clone_scope(std::vector<rec> &C) {
 }
 
 void mutate_choices(std::vector<rec> &C) {
-  std::cerr << "mutate_choices\n";
+  //std::cerr << "mutate_choices\n";
   std::uniform_int_distribution<uint64_t> CoinDist(0, 1);
   std::uniform_int_distribution<uint64_t> MutationKindDist(
       0, static_cast<uint64_t>(MutationKind::MAX_MUTATION_KIND) - 1);
-  std::cerr << "before the loop\n";
+  //std::cerr << "before the loop\n";
   do {
     auto MID = static_cast<MutationKind>(MutationKindDist(*Rand.get()));
-    std::cerr << "MID: " << static_cast<uint64_t>(MID) << "\n";
+    //std::cerr << "MID: " << static_cast<uint64_t>(MID) << "\n";
     switch (MID) {
     case MutationKind::NUMBER:
       change_one_number(C);
