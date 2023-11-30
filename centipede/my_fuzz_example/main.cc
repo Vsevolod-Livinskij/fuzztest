@@ -27,6 +27,12 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     // LOG(INFO) << "Temp dir: " << temp_dir;
 
     auto input = inputs.front();
+
+    if (input.empty()) {
+      return ExecuteCentipedeSancovBinaryWithShmem(binary, inputs,
+                                                   batch_result) == 0;
+    }
+
     std::string inp_choice_seq_file =
         std::filesystem::path(temp_dir).append(absl::StrCat("input"));
     WriteToLocalFile(inp_choice_seq_file, input);
@@ -120,6 +126,12 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
 
     // Read inputs to a choice sequence and mutate them
     auto input = inputs.front();
+    if (input.data.empty()) {
+      LOG(ERROR) << "ERROR: empty input for mutation";
+      mutants.emplace_back(input.data.begin(), input.data.end());
+      return;
+    }
+
     std::string Str(input.data.begin(), input.data.end());
     std::stringstream SS(Str);
     tree_guide::FileGuide FG;
