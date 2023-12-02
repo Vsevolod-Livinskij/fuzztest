@@ -28,11 +28,6 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
 
     auto input = inputs.front();
 
-    if (input.empty()) {
-      return ExecuteCentipedeSancovBinaryWithShmem(binary, inputs,
-                                                   batch_result) == 0;
-    }
-
     std::string inp_choice_seq_file =
         std::filesystem::path(temp_dir).append(absl::StrCat("input"));
     WriteToLocalFile(inp_choice_seq_file, input);
@@ -51,9 +46,7 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     if (!success) {
       LOG(ERROR) << "Failed to generate";
       LOG(ERROR) << "Input: " << input.data();
-      std::string new_binary(binary);
-      new_binary += " --version";
-      return ExecuteCentipedeSancovBinaryWithShmem(new_binary, inputs,
+      return ExecuteCentipedeSancovBinaryWithShmem(binary, inputs,
                                                    batch_result) == 0;
     }
 
@@ -126,19 +119,13 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
 
     // Read inputs to a choice sequence and mutate them
     auto input = inputs.front();
-    if (input.data.empty()) {
-      LOG(ERROR) << "ERROR: empty input for mutation";
-      mutants.emplace_back(input.data.begin(), input.data.end());
-      return;
-    }
-
     std::string Str(input.data.begin(), input.data.end());
     std::stringstream SS(Str);
     tree_guide::FileGuide FG;
     FG.setSync(tree_guide::Sync::RESYNC);
     //FG.setSync(tree_guide::Sync::NONE);
     if (!FG.parseChoices(SS, Prefix)) {
-      LOG(ERROR) << "ERROR: couldn't parse choices from: \n" << SS.str();
+      LOG(ERROR) << "ERROR: couldn't parse choices for mutation from: \n" << SS.str();
       mutants.emplace_back(input.data.begin(), input.data.end());
       return;
     }
