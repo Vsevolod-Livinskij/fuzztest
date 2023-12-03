@@ -10,7 +10,7 @@ ENV LLVM_HOME=$TESTING_HOME/llvm
 ARG LLVM_REPO=https://github.com/llvm/llvm-project.git
 # This is the LLVM version that we use to compile instrumented binary
 # The system default isa bit old, so we use a separate one
-ARG LLVM_INSTR_VERSION=llvmorg-17.0.5
+ARG LLVM_INSTR_VERSION=llvmorg-17.0.6
 ARG LLVM_VERSION=main
 
 ENV BINUTILS_HOME=$TESTING_HOME/binutils
@@ -36,6 +36,7 @@ RUN apt-get -y update &&\
     bison \
     bzip2 \
     cmake \
+    clang \
     creduce \
     curl \
     flex \

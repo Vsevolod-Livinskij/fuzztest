@@ -26,6 +26,8 @@ git log --format="%H" -n 1 >> $LLVM_HOME/llvm_rev.txt
 
 # Pre-compilation steps
 cd $LLVM_HOME/build_$LLVM_VERSION
+CC=clang \
+CXX=clang++ \
 cmake -G "Ninja" \
     -DCMAKE_INSTALL_PREFIX=$LLVM_HOME/bin_$LLVM_VERSION \
     -DCMAKE_BUILD_TYPE=Release \
@@ -33,7 +35,7 @@ cmake -G "Ninja" \
     -DLLVM_INSTALL_UTILS=ON \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     -DLLVM_TARGETS_TO_BUILD=X86 \
-    -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld" \
+    -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
     -DLLVM_ENABLE_RUNTIMES="compiler-rt" \
     $LLVM_HOME/llvm_src/llvm &&\
 

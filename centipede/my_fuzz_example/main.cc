@@ -234,6 +234,7 @@ int CentipedeMain(const Environment& env,
 
 // Run command
 // rm -rf /testing/result/centipede-run/* && time ./main --binary="/testing/llvm/centipede_build_main/bin/clang++" --workdir=/testing/result/centipede-run/ --num_runs=20 --batch_size=1 --rss_limit_mb=0 --address_space_limit_mb=0 --timeout_per_input=120 --timeout_per_batch=240 --corpus_dir=/testing/result/guided-corpus --max_len=100000 --num_crash_reports=10000
+// rm -rf /testing/result/centipede-run/* && time ./main --binary="/testing/llvm/centipede_build_main/bin/clang++" --workdir=/testing/result/centipede-run/ --batch_size=1 --mutate_batch_size=1 --rss_limit_mb=0 --address_space_limit_mb=0 --timeout_per_input=120 --timeout_per_batch=120 --corpus_dir=/testing/result/guided-corpus --max_len=100000 --num_crash_reports=10000 --num_runs=100000 --fork_server=false -j 32 --stop_after=12h
 
 int main(int argc, char **argv) {
   const auto leftover_argv = centipede::config::InitCentipede(argc, argv);
