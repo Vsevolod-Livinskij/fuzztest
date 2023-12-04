@@ -11,7 +11,7 @@ namespace {
 
 static bool DEBUG_PLUGIN = false;
 
-extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity);
+extern "C" size_t CentipedeGetExecutionResult(uint8_t* data, size_t capacity);
 extern "C" void CentipedeClearExecutionResult();
 
 class MyCentipedeCallbacks : public CentipedeCallbacks {
@@ -51,7 +51,6 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     }
 
     // LOG(INFO) << "Generation: " << success;
-
 
     std::string func_cpp =
         std::filesystem::path(temp_dir).append(absl::StrCat("func.cpp"));
@@ -107,58 +106,62 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
   }
 
   void Mutate(const std::vector<MutationInputRef>& inputs, size_t num_mutants,
-                std::vector<ByteArray>& mutants) override {
-    //LOG(INFO) << "Mutation started";
+              std::vector<ByteArray>& mutants) override {
+    // LOG(INFO) << "Mutation started";
 
     std::string Prefix = "// ";
 
     // Create a temporary directory
     const std::string temp_dir = TemporaryLocalDirPath();
     CHECK(!temp_dir.empty());
-    //LOG(INFO) << "Temp dir: " << temp_dir;
+    // LOG(INFO) << "Temp dir: " << temp_dir;
 
     // Read inputs to a choice sequence and mutate them
     auto input = inputs.front();
+    std::string temp_inp_file;
     std::string Str(input.data.begin(), input.data.end());
     std::stringstream SS(Str);
     tree_guide::FileGuide FG;
     FG.setSync(tree_guide::Sync::RESYNC);
-    //FG.setSync(tree_guide::Sync::NONE);
-    if (!FG.parseChoices(SS, Prefix)) {
-      LOG(ERROR) << "ERROR: couldn't parse choices for mutation from: \n" << SS.str();
-      mutants.emplace_back(input.data.begin(), input.data.end());
-      return;
+    // FG.setSync(tree_guide::Sync::NONE);
+    bool parsed = FG.parseChoices(SS, Prefix);
+    if (parsed) {
+      auto C = FG.getChoices();
+      // LOG(INFO) << "Parsed choices num: " << C.size();
+      mutator::mutate_choices(C);
+      // LOG(INFO) << "Mutation complete";
+      FG.replaceChoices(C);
+      // LOG(INFO) << "Mutated choices num: " << FG.getChoices().size();
+
+      // Create a Saver guide to dump the mutated choice sequence
+      // LOG(INFO) << "Dumping mutated choice sequence";
+      tree_guide::SaverGuide SG(&FG, Prefix);
+      auto Ch = SG.makeChooser();
+      auto SaverCh = static_cast<tree_guide::SaverChooser*>(Ch.get());
+      SaverCh->overrideChoices(C);
+      assert(SaverCh);
+
+      // Normalize the choice sequence
+      // LOG(INFO) << "Normalizing choice sequence";
+      std::string choice_seq_str = SaverCh->formatChoices();
+      // LOG(INFO) << "Choice sequence to normalize len: " << choice_seq_str.size();
+      temp_inp_file =
+          std::filesystem::path(temp_dir).append(absl::StrCat("input"));
+      WriteToLocalFile(temp_inp_file, choice_seq_str);
     }
-    auto C = FG.getChoices();
-    //LOG(INFO) << "Parsed choices num: " << C.size();
-    mutator::mutate_choices(C);
-    //LOG(INFO) << "Mutation complete";
-    FG.replaceChoices(C);
-    //LOG(INFO) << "Mutated choices num: " << FG.getChoices().size();
 
-    // Create a Saver guide to dump the mutated choice sequence
-    //LOG(INFO) << "Dumping mutated choice sequence";
-    tree_guide::SaverGuide SG(&FG, Prefix);
-    auto Ch = SG.makeChooser();
-    auto SaverCh = static_cast<tree_guide::SaverChooser*>(Ch.get());
-    SaverCh->overrideChoices(C);
-    assert(SaverCh);
-
-    // Normalize the choice sequence
-    //LOG(INFO) << "Normalizing choice sequence";
-    std::string choice_seq_str = SaverCh->formatChoices();
-    //LOG(INFO) << "Choice sequence to normalize len: " << choice_seq_str.size();
-    std::string temp_inp_file =
-        std::filesystem::path(temp_dir).append(absl::StrCat("input"));
     std::string temp_out_file =
         std::filesystem::path(temp_dir).append(absl::StrCat("output"));
-    WriteToLocalFile(temp_inp_file, choice_seq_str);
-    Command cmd{"/testing/result/yarpgen",
-                {"--single-file=true", "--param-shuffle=false",
-                 "--choice-seq-load-file=" + temp_inp_file,
-                 "--choice-seq-save-file=" + temp_out_file, "-o " + temp_dir}};
+    std::vector<std::string> yarpgen_args = {
+        "--single-file=true", "--param-shuffle=false",
+        "--choice-seq-save-file=" + temp_out_file, "-o " + temp_dir};
 
-    //LOG(INFO) << "Normalization cmd: " << cmd.ToString();
+    if (parsed)
+      yarpgen_args.push_back("--choice-seq-load-file=" + temp_inp_file);
+
+    Command cmd{"/testing/result/yarpgen", yarpgen_args};
+
+    // LOG(INFO) << "Normalization cmd: " << cmd.ToString();
     bool success = cmd.Execute() == 0;
     if (!success) {
       LOG(ERROR) << "Failed to normalize";
@@ -167,7 +170,7 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     }
 
     // Read the normalized choice sequence
-    //LOG(INFO) << "Reading normalized choice sequence";
+    // LOG(INFO) << "Reading normalized choice sequence";
     tree_guide::FileGuide FG_new;
     FG_new.parseChoices(temp_out_file, Prefix);
     tree_guide::SaverGuide SG2(&FG_new, Prefix);
@@ -177,56 +180,11 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     auto choice_seq_str_new = SaverCh_new->formatChoices();
     mutants.emplace_back(choice_seq_str_new.begin(), choice_seq_str_new.end());
 
-    //LOG(INFO) << "Mutant len: " << choice_seq_str_new.size();
+    // LOG(INFO) << "Mutant len: " << choice_seq_str_new.size();
   }
-    /*
-    // Prepare input
-
-
-    // Prepare the feature collection
-    std::string output;
-    const size_t output_size = 2048;
-    output.resize(output_size);
-
-    CentipedeClearExecutionResult();
-
-    // Run
-    Command cmd {
-        env_.binary, {temp_file_path},
-    };
-    const int retval = cmd.Execute();
-
-    // Get features
-    const size_t offset = CentipedeGetExecutionResult(
-        reinterpret_cast<uint8_t*>(output.data()), output.size());
-    if (offset == 0) {
-      std::cerr << "Failed to dump output execution results.";
-      return EXIT_FAILURE;
-    }
-
-    batch_result.results().resize(inputs.size());
-    BlobSequence blob_seq(reinterpret_cast<uint8_t*>(output.data()), output.size());
-    batch_result.Read(blob_seq);
-
-    return retval == 0;
-    */
 };
-
-/*
-class MyCentipedeCallbacks : public CentipedeDefaultCallbacks {
- public:
-  explicit MyCentipedeCallbacks(const Environment& env)
-      : CentipedeDefaultCallbacks(env) {}
-};
-*/
 }
-//   int main(int argc, char **argv) {
-//     InitGoogle(argv[0], &argc, &argv, /*remove_flags=*/true);
-//     centipede::Environment env;  // reads FLAGS.
-//     centipede::DefaultCallbacksFactory<MyCentipedeCallbacks>
-//     callbacks_factory; return centipede::CentipedeMain(env,
-//     callbacks_factory);
-//   }
+
 int CentipedeMain(const Environment& env,
                   CentipedeCallbacksFactory& callbacks_factory);
 
