@@ -25,4 +25,4 @@ git log --format="%H" -n 1 >> $FUZZTEST_HOME/fuzztest_rev.txt
 CENTIPEDE_SRC=$FUZZTEST_HOME/centipede
 BIN_DIR=$FUZZTEST_HOME/bazel-bin/centipede
 bazel build -c opt centipede:all
-
+bazel build -c opt centipede/my_fuzz_example:all

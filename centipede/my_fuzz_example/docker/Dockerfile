@@ -28,7 +28,6 @@ ENV YARPGEN_HOME=$TESTING_HOME/yarpgen
 ARG YARPGEN_REPO=https://github.com/intel/yarpgen
 ARG YARPGEN_VERSION=main
 
-
 ARG USER_AGENT="Mozilla/5.0"
 
 RUN apt-get -y update &&\
@@ -69,23 +68,32 @@ RUN apt-get -y update &&\
 
 WORKDIR $TESTING_HOME
 
-# Sytem LD doesn't support DWARF v5, which is required for instrumented LLVM trunk
-COPY build_binutils.sh /
-RUN /build_binutils.sh $BINUTILS_REPO
+# Get SDE
+RUN wget -U $USER_AGENT --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 5 $SDE_REPO/$SDE_VERSION.tar.xz
+RUN tar -xf $SDE_VERSION.tar.xz
+ENV PATH=$TESTING_HOME/$SDE_VERSION:$PATH
 
-ENV PATH=$BINUTILS_HOME/bin/bin:$PATH
-ENV LD_LIBRARY_PATH=$BINUTILS_HOME/bin/lib/:$LD_LIBRARY_PATH
+
+# Sytem LD doesn't support DWARF v5, which is required for instrumented LLVM trunk
+#COPY build_binutils.sh /
+#RUN /build_binutils.sh $BINUTILS_REPO
+
+#ENV PATH=$BINUTILS_HOME/bin/bin:$PATH
+#ENV LD_LIBRARY_PATH=$BINUTILS_HOME/bin/lib/:$LD_LIBRARY_PATH
 
 
 # Build the LLVM version that we use for instrumentation
 COPY build_llvm.sh /
 RUN /build_llvm.sh $LLVM_REPO $LLVM_INSTR_VERSION
+
 ENV PATH=$LLVM_HOME/bin_$LLVM_INSTR_VERSION/bin/:$PATH
 ENV LD_LIBRARY_PATH=$LLVM_HOME/bin_$LLVM_INSTR_VERSION/lib/:$LD_LIBRARY_PATH
+
 
 # Builde centipede
 COPY build_centipede.sh /
 RUN /build_centipede.sh $FUZZTEST_REPO $FUZZTEST_VERSION
+
 
 # Build instrumented LLVM
 COPY build_llvm_for_centipede.sh /
@@ -94,51 +102,14 @@ RUN echo "src:$LLVM_HOME/llvm_src/llvm/*" > /allowlist.txt &&\
     echo "fun:*" >> /allowlist.txt
 RUN /build_llvm_for_centipede.sh $LLVM_REPO $LLVM_VERSION
 
-#RUN git clone $YARPGEN_REPO $YARPGEN_HOME &&\
-#    cd $YARPGEN_HOME &&\
-#    git checkout $YARPGEN_VERSION
 
-#COPY build_gcc.sh /
-#RUN /build_gcc.sh $GCC_REPO $GCC_VERSION
-
-#RUN $YARPGEN_HOME/scripts/build_gcc.sh $GCC_REPO $GCC_VERSION
-
-# We want to test Sapphire Rapids target. The problem is that
-# the system default version of binutils doesn't support it yet.
-# Therefore, we have to build them by ourselves.
-# We should switch back to the system default version when it is updated.
-#RUN $YARPGEN_HOME/scripts/build_binutils.sh $BINUTILS_REPO
-
-#RUN $YARPGEN_HOME/scripts/build_llvm.sh $LLVM_REPO $LLVM_VERSION
-
-RUN wget -U $USER_AGENT --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 5 $SDE_REPO/$SDE_VERSION.tar.xz
-RUN tar -xf $SDE_VERSION.tar.xz
-ENV PATH=$TESTING_HOME/$SDE_VERSION:$PATH
-
-#RUN $YARPGEN_HOME/scripts/build_yarpgen.sh
-
-#ENV PATH=$GCC_HOME/bin_$GCC_VERSION/bin:$PATH
-#ENV LD_LIBRARY_PATH=$GCC_HOME/bin_$GCC_VERSION/lib64/:$LD_LIBRARY_PATH
-
-#ENV PATH=$BINUTILS_HOME/bin/bin:$PATH
-#ENV LD_LIBRARY_PATH=$BINUTILS_HOME/bin/lib/:$LD_LIBRARY_PATH
-
-#ENV PATH=$LLVM_HOME/bin_$LLVM_VERSION/bin/:$PATH
-#ENV LD_LIBRARY_PATH=$LLVM_HOME/bin_$LLVM_VERSION/lib/:$LD_LIBRARY_PATH
-
-#ENV PATH=$FUZZTEST_HOME/bazel-bin/centipede:$PATH
-#ENV LD_LIBRARY_PATH=FUZZTEST_HOME/bazel-bin/centipede:$LD_LIBRARY_PATH
+# Build yarpgen
+RUN git clone $YARPGEN_REPO $YARPGEN_HOME &&\
+    cd $YARPGEN_HOME &&\
+    git checkout $YARPGEN_VERSION &&\
+    git submodule update --init --recursive &&\
+    $YARPGEN_HOME/scripts/build_yarpgen.sh
 
 ARG RESULT_DIR
 ENV RESULT_DIR=${RESULT_DIR:-$TESTING_HOME/result}
-
-#COPY docker-entrypoint.sh /
-# It is recommended to use a no-cache build, otherwise compiler won't be updated:
-# docker build --no-cache -t yarpgen-testing .
-#
-# Use this command to start a testing for 24-hours.
-# Feel free to change the parameters that are passed to run_gen.py
-# docker run --rm --name yarpgen-daily --mount source=yarpgen-result,target=/testing/result -e HOST_HOSTNAME=$(uname -n) yarpgen-testing -t 1440 
-#ENTRYPOINT ["/docker-entrypoint.sh"]
-#CMD ["-t 1"]
 
