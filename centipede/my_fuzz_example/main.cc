@@ -32,8 +32,9 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
         std::filesystem::path(temp_dir).append(absl::StrCat("input"));
     WriteToLocalFile(inp_choice_seq_file, input);
 
+    // We will assume that the user has yarpgen in the path
     Command generate{
-        "/testing/result/yarpgen",
+        "yarpgen",
         {
             "--check-algo=asserts",
             "--param-shuffle=false",

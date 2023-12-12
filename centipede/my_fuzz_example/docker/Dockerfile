@@ -62,7 +62,10 @@ RUN apt-get -y update &&\
     mv bazel-archive-keyring.gpg /usr/share/keyrings &&\
     echo deb [arch=amd64 signed-by=/usr/share/keyrings/bazel-archive-keyring.gpg] https://storage.googleapis.com/bazel-apt stable jdk1.8 | tee /etc/apt/sources.list.d/bazel.list &&\
     apt-get -y update &&\
-    apt-get -y install bazel &&\
+    apt-get -y install bazel-6.4.0 &&\
+    apt-get install pip -y &&\
+    pip install --no-cache-dir --upgrade pip &&\
+    pip install --no-cache-dir psutil &&\
     rm -rf /var/lib/apt/lists/*
 
 
@@ -109,7 +112,11 @@ RUN git clone $YARPGEN_REPO $YARPGEN_HOME &&\
     git checkout $YARPGEN_VERSION &&\
     git submodule update --init --recursive &&\
     $YARPGEN_HOME/scripts/build_yarpgen.sh
+ENV PATH=$YARPGEN_HOME/build/:$PATH
+
 
 ARG RESULT_DIR
 ENV RESULT_DIR=${RESULT_DIR:-$TESTING_HOME/result}
 
+ENTRYPOINT ["$FUZZTEST_HOME/centipede/my_fuzz_example/docker/random-eval-entrypoint.sh"]
+CMD ["3 1000"]
