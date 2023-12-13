@@ -22,7 +22,7 @@ rm -rf ${RANDOM_CORPUS:?}/*
 
 # Generate tests to populate random corpus
 # Ohm can process 12.5k tests per minute.
-#ohm_throughput=12500
+#ohm_throughput=19200
 #ohm_throughput=17
 # Number of tests to generate
 #num_tests=$(($testing_time * 60 * $ohm_throughput))

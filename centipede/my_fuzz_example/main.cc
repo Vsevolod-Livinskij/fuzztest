@@ -160,7 +160,7 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
     if (parsed)
       yarpgen_args.push_back("--choice-seq-load-file=" + temp_inp_file);
 
-    Command cmd{"/testing/result/yarpgen", yarpgen_args};
+    Command cmd{"yarpgen", yarpgen_args};
 
     // LOG(INFO) << "Normalization cmd: " << cmd.ToString();
     bool success = cmd.Execute() == 0;
