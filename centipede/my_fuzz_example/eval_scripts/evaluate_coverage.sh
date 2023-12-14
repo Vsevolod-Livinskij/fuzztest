@@ -45,6 +45,7 @@ $FUZZTEST_HOME/bazel-bin/centipede/my_fuzz_example/main \
     --fork_server=false \
     --num_runs=1000000 \
     -j $jobs_num \
+    --full_sync=true \
     --stop_after=${testing_time}h \
     --corpus_dir=$COVERAGE_CORPUS \
     --workdir=$COVERAGE_CENTIPEDE_WD/
