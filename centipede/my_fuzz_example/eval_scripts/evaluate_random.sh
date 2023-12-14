@@ -18,7 +18,7 @@ mkdir -p $RANDOM_RESULT_WD
 touch $RANDOM_RESULT_FILE
 
 # Clean up old corpus
-rm -rf ${RANDOM_CORPUS:?}/*
+rm -rf $RANDOM_CORPUS && mkdir -p $RANDOM_CORPUS
 
 # Generate tests to populate random corpus
 # Ohm can process 12.5k tests per minute.

@@ -18,7 +18,7 @@ mkdir -p $COVERAGE_RESULT_WD
 touch $COVERAGE_RESULT_FILE
 
 # Clean up old corpus and put initial seed
-rm -rf ${COVERAGE_CORPUS:?}/*
+rm -rf $COVERAGE_CORPUS && mkdir -p $COVERAGE_CORPUS
 cp $FUZZTEST_HOME/centipede/my_fuzz_example/eval_scripts/42 $COVERAGE_CORPUS/42
 touch $COVERAGE_CORPUS/null
 
