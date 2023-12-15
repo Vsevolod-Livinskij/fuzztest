@@ -21,12 +21,16 @@ ARG SDE_VERSION=sde-external-9.14.0-2022-10-25-lin
 
 # Centipede lives inside fuzztest repo
 ENV FUZZTEST_HOME=$TESTING_HOME/fuzztest
-ARG FUZZTEST_REPO=https://github.com/google/fuzztest
-ARG FUZZTEST_VERSION=main
+#ARG FUZZTEST_REPO=https://github.com/google/fuzztest
+#ARG FUZZTEST_VERSION=main
+ARG FUZZTEST_REPO=https://github.com/Vsevolod-Livinskij/fuzztest.git
+ARG FUZZTEST_VERSION=compiler_fuzzing
 
 ENV YARPGEN_HOME=$TESTING_HOME/yarpgen
-ARG YARPGEN_REPO=https://github.com/intel/yarpgen
-ARG YARPGEN_VERSION=main
+#ARG YARPGEN_REPO=https://github.com/intel/yarpgen
+#ARG YARPGEN_VERSION=main
+ARG YARPGEN_REPO=https://github.com/Vsevolod-Livinskij/yarpgen.git
+ARG YARPGEN_VERSION=centipede-eval
 
 ARG USER_AGENT="Mozilla/5.0"
 
