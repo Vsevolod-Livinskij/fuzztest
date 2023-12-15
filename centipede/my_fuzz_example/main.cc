@@ -66,7 +66,7 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
       LOG(ERROR) << "Failed to compile func";
       return false;
     }
-    /*
+
     std::string driver_cpp =
         std::filesystem::path(temp_dir).append(absl::StrCat("driver.cpp"));
     std::string driver_o =
@@ -102,7 +102,7 @@ class MyCentipedeCallbacks : public CentipedeCallbacks {
       LOG(ERROR) << "Failed to execute";
     }
     // LOG(INFO) << "Execution: " << success;
-    */
+
     return success;
   }
 
