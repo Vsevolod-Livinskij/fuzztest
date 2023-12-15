@@ -24,7 +24,7 @@ ENV FUZZTEST_HOME=$TESTING_HOME/fuzztest
 #ARG FUZZTEST_REPO=https://github.com/google/fuzztest
 #ARG FUZZTEST_VERSION=main
 ARG FUZZTEST_REPO=https://github.com/Vsevolod-Livinskij/fuzztest.git
-ARG FUZZTEST_VERSION=compiler_fuzzing
+ARG FUZZTEST_VERSION=compiler_fuzzing_eval
 
 ENV YARPGEN_HOME=$TESTING_HOME/yarpgen
 #ARG YARPGEN_REPO=https://github.com/intel/yarpgen
